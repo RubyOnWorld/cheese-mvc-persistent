@@ -9,6 +9,83 @@
 
 </head>
 <body>
+    
+    
+        $(#[doc=$doc])*
+        #[cfg($cfg)]
+        pub fn $name(library: &mut super::SharedLibrary) {
+            let symbol = unsafe { library.library.get(stringify!($name).as_bytes()) }.ok();
+            library.functions.$name = match symbol {
+                Some(s) => *s,
+                None => None,
+            };
+        }
+
+        #[cfg(not($cfg))]
+        pub fn $name(_: &mut super::SharedLibrary) {}
+    );
+
+    (
+        @LOAD:
+        fn $name:ident($($pname:ident: $pty:ty), *) $(-> $ret:ty)*
+    ) => (
+        link!(@LOAD: #[cfg(feature = "runtime")] fn $name($($pname: $pty), *) $(-> $ret)*);
+    );
+
+    (
+        $(
+            $(#[doc=$doc:expr] #[cfg($cfg:meta)])*
+            pub fn $name:ident($($pname:ident: $pty:ty), *) $(-> $ret:ty)*;
+        )+
+    ) => (
+        use std::cell::{RefCell};
+        use std::sync::{Arc};
+        use std::path::{Path, PathBuf};
+
+        /// The (minimum) version of a `libclang` shared library.
+        #[allow(missing_docs)]
+        #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub enum Version {
+            V3_5 = 35,
+            V3_6 = 36,
+            V3_7 = 37,
+            V3_8 = 38,
+            V3_9 = 39,
+            V4_0 = 40,
+            V5_0 = 50,
+            V6_0 = 60,
+            V7_0 = 70,
+            V8_0 = 80,
+            V9_0 = 90,
+        }
+
+        /// The set of functions loaded dynamically.
+        #[derive(Debug, Default)]
+        pub struct Functions {
+            $(
+                $(#[doc=$doc] #[cfg($cfg)])*
+                pub $name: Option<unsafe extern fn($($pname: $pty), *) $(-> $ret)*>,
+            )+
+        }
+
+        /// A dynamically loaded instance of the `libclang` library.
+        #[derive(Debug)]
+        pub struct SharedLibrary {
+            library: libloading::Library,
+            path: PathBuf,
+            pub functions: Functions,
+        }
+
+        impl SharedLibrary {
+            fn new(library: libloading::Library, path: PathBuf) -> Self {
+                Self { library, path, functions: Functions::default() }
+            }
+
+            /// Returns the path to this `libclang` shared library.
+            pub fn path(&self) -> &Path {
+                &self.path
+            }
+    
 
 <nav th:fragment="navigation">
     <a href="/cheese">List</a> |
